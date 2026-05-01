@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اقتراحات سيرفر ARX</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <style>
+        :root { 
+            --main-color: #5865F2; 
+            --bg-color: #23272a; 
+            --card-bg: #2c2f33; 
+            --text-color: #ffffff;
+            --success: #3ba55c;
+            --danger: #ed4245;
+        }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background-color: var(--bg-color); 
+            color: var(--text-color); 
+            padding: 20px; 
+            text-align: center;
+        }
+        .container { max-width: 500px; margin: auto; }
+        .main-btns { display: flex; gap: 10px; margin-bottom: 30px; }
+        button { 
+            flex: 1; padding: 15px; border: none; border-radius: 8px; 
+            background: var(--main-color); color: white; font-weight: bold; 
+            cursor: pointer; transition: 0.3s; font-size: 16px;
+        }
+        button:hover { background: #4752c4; transform: translateY(-2px); }
+        
+        .box { 
+            background: var(--card-bg); padding: 20px; border-radius: 15px; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3); margin-top: 20px;
+        }
+        textarea { 
+            width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #23272a; 
+            background: #40444b; color: white; box-sizing: border-box; resize: none; margin-bottom: 10px;
+        }
+
+        /* تنسيق بطاقة الاقتراح */
+        .suggestion-card { 
+            background: var(--card-bg); padding: 15px; border-radius: 10px; 
+            margin-bottom: 15px; text-align: right; border-bottom: 3px solid var(--main-color);
+        }
+        .vote-area { display: flex; gap: 20px; margin-top: 10px; border-top: 1px solid #4f545c; padding-top: 10px; }
+        .vote-btn { 
+            background: none; border: 1px solid #4f545c; padding: 5px 15px; 
+            width: auto; font-size: 18px; display: flex; align-items: center; gap: 8px;
+        }
+        .vote-btn:hover { transform: scale(1.1); background: #40444b; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>💡 اقتراحات سيرفر ARX</h2>
+    
+    <div class="main-btns">
+        <button onclick="showSection('write')">✍️ اكتب اقتراحك</button>
+        <button onclick="showSection('view')">📢 شوف الاقتراحات</button>
+    </div>
+
+    <div id="writeSection" class="box hidden">
+        <h3>ما هو اقتراحك؟</h3>
+        <textarea id="sugText" rows="4" placeholder="اكتب فكرتك هنا..."></textarea>
+        <button onclick="sendSuggestion()">إرسال الاقتراح 🚀</button>
+    </div>
+
+    <div id="viewSection" class="hidden">
+        <div id="suggestionsList">جاري التحميل...</div>
+    </div>
+</div>
+
+<script>
+    const firebaseConfig = {
+        databaseURL: "https://zxf-support-default-rtdb.firebaseio.com"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    function showSection(type) {
+        document.getElementById('writeSection').classList.toggle('hidden', type !== 'write');
+        document.getElementById('viewSection').classList.toggle('hidden', type !== 'view');
+        if(type === 'view') loadSuggestions();
+    }
+
+    function sendSuggestion() {
+        const text = document.getElementById('sugText').value;
+        if(!text) return alert("اكتب شيء أولاً!");
+
+        db.ref('suggestions').push({
+            text: text,
+            up: 0,
+            down: 0,
+            date: new Date().toLocaleString()
+        }).then(() => {
+            alert("تم إرسال اقتراحك بنجاح!");
+            document.getElementById('sugText').value = "";
+            showSection('view');
+        });
+    }
+
+    function loadSuggestions() {
+        db.ref('suggestions').on('value', (snap) => {
+            const list = document.getElementById('suggestionsList');
+            list.innerHTML = "";
+            if(!snap.exists()) { list.innerHTML = "لا توجد اقتراحات حالياً."; return; }
+
+            snap.forEach((child) => {
+                const data = child.val();
+                const key = child.key;
+                list.innerHTML += `
+                    <div class="suggestion-card">
+                        <p>${data.text}</p>
+                        <div class="vote-area">
+                            <button class="vote-btn" onclick="vote('${key}', 'up')">✅ <span>${data.up}</span></button>
+                            <button class="vote-btn" onclick="vote('${key}', 'down')">❌ <span>${data.down}</span></button>
+                        </div>
+                    </div>`;
+            });
+        });
+    }
+
+    function vote(key, type) {
+        const ref = db.ref('suggestions').child(key).child(type);
+        ref.transaction((current) => (current || 0) + 1);
+    }
+</script>
+</body>
+</html>
