@@ -12,7 +12,6 @@
             --bg-color: #23272a; 
             --card-bg: #2c2f33; 
             --text-color: #ffffff;
-            --success: #3ba55c;
             --danger: #ed4245;
         }
         body { 
@@ -40,17 +39,20 @@
             background: #40444b; color: white; box-sizing: border-box; resize: none; margin-bottom: 10px;
         }
 
-        /* تنسيق بطاقة الاقتراح */
         .suggestion-card { 
             background: var(--card-bg); padding: 15px; border-radius: 10px; 
             margin-bottom: 15px; text-align: right; border-bottom: 3px solid var(--main-color);
         }
-        .vote-area { display: flex; gap: 20px; margin-top: 10px; border-top: 1px solid #4f545c; padding-top: 10px; }
+        .vote-area { display: flex; gap: 15px; margin-top: 10px; border-top: 1px solid #4f545c; padding-top: 10px; align-items: center; }
         .vote-btn { 
-            background: none; border: 1px solid #4f545c; padding: 5px 15px; 
-            width: auto; font-size: 18px; display: flex; align-items: center; gap: 8px;
+            background: none; border: 1px solid #4f545c; padding: 5px 12px; 
+            width: auto; font-size: 16px; display: flex; align-items: center; gap: 5px;
         }
-        .vote-btn:hover { transform: scale(1.1); background: #40444b; }
+        .del-btn { 
+            background: var(--danger); color: white; padding: 5px 10px; 
+            border-radius: 5px; font-size: 12px; margin-right: auto;
+        }
+        .admin-footer { margin-top: 40px; border-top: 1px dashed #4f545c; padding-top: 20px; }
         .hidden { display: none; }
     </style>
 </head>
@@ -73,6 +75,11 @@
     <div id="viewSection" class="hidden">
         <div id="suggestionsList">جاري التحميل...</div>
     </div>
+
+    <div class="admin-footer">
+        <button id="adminLoginBtn" onclick="adminLogin()" style="background: #4f545c; font-size: 12px; width: auto; padding: 8px 20px;">دخول الإدارة 🛠️</button>
+        <p id="adminStatus" class="hidden" style="color: #3ba55c; font-size: 13px;">وضع المسؤول مفعل ✅</p>
+    </div>
 </div>
 
 <script>
@@ -81,6 +88,7 @@
     };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
+    let isAdmin = false;
 
     function showSection(type) {
         document.getElementById('writeSection').classList.toggle('hidden', type !== 'write');
@@ -98,7 +106,7 @@
             down: 0,
             date: new Date().toLocaleString()
         }).then(() => {
-            alert("تم إرسال اقتراحك بنجاح!");
+            alert("تم إرسال اقتراحك!");
             document.getElementById('sugText').value = "";
             showSection('view');
         });
@@ -119,6 +127,7 @@
                         <div class="vote-area">
                             <button class="vote-btn" onclick="vote('${key}', 'up')">✅ <span>${data.up}</span></button>
                             <button class="vote-btn" onclick="vote('${key}', 'down')">❌ <span>${data.down}</span></button>
+                            ${isAdmin ? `<button class="del-btn" onclick="deleteSug('${key}')">حذف 🗑️</button>` : ''}
                         </div>
                     </div>`;
             });
@@ -128,6 +137,24 @@
     function vote(key, type) {
         const ref = db.ref('suggestions').child(key).child(type);
         ref.transaction((current) => (current || 0) + 1);
+    }
+
+    function adminLogin() {
+        const pass = prompt("أدخل رمز الإدارة:");
+        if(pass === "8899916710") {
+            isAdmin = true;
+            document.getElementById('adminLoginBtn').classList.add('hidden');
+            document.getElementById('adminStatus').classList.remove('hidden');
+            loadSuggestions(); // تحديث القائمة لإظهار أزرار الحذف
+        } else {
+            alert("الرمز خاطئ!");
+        }
+    }
+
+    function deleteSug(key) {
+        if(confirm("حذف الاقتراح نهائياً؟")) {
+            db.ref('suggestions').child(key).remove();
+        }
     }
 </script>
 </body>
