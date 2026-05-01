@@ -43,14 +43,15 @@
             background: var(--card-bg); padding: 15px; border-radius: 10px; 
             margin-bottom: 15px; text-align: right; border-bottom: 3px solid var(--main-color);
         }
-        .vote-area { display: flex; gap: 15px; margin-top: 10px; border-top: 1px solid #4f545c; padding-top: 10px; align-items: center; }
+        .vote-area { display: flex; gap: 10px; margin-top: 10px; border-top: 1px solid #4f545c; padding-top: 10px; align-items: center; }
         .vote-btn { 
-            background: none; border: 1px solid #4f545c; padding: 5px 12px; 
-            width: auto; font-size: 16px; display: flex; align-items: center; gap: 5px;
+            background: #40444b; border: 1px solid #4f545c; padding: 8px 15px; 
+            width: auto; font-size: 16px; display: flex; align-items: center; gap: 8px; border-radius: 5px;
         }
+        .vote-btn.voted { border-color: var(--main-color); background: #4f545c; }
         .del-btn { 
-            background: var(--danger); color: white; padding: 5px 10px; 
-            border-radius: 5px; font-size: 12px; margin-right: auto;
+            background: var(--danger); color: white; padding: 8px 15px; 
+            border-radius: 5px; font-size: 14px; margin-right: auto; font-weight: bold;
         }
         .admin-footer { margin-top: 40px; border-top: 1px dashed #4f545c; padding-top: 20px; }
         .hidden { display: none; }
@@ -83,9 +84,7 @@
 </div>
 
 <script>
-    const firebaseConfig = {
-        databaseURL: "https://zxf-support-default-rtdb.firebaseio.com"
-    };
+    const firebaseConfig = { databaseURL: "https://zxf-support-default-rtdb.firebaseio.com" };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
     let isAdmin = false;
@@ -99,34 +98,29 @@
     function sendSuggestion() {
         const text = document.getElementById('sugText').value;
         if(!text) return alert("اكتب شيء أولاً!");
-
-        db.ref('suggestions').push({
-            text: text,
-            up: 0,
-            down: 0,
-            date: new Date().toLocaleString()
-        }).then(() => {
-            alert("تم إرسال اقتراحك!");
-            document.getElementById('sugText').value = "";
-            showSection('view');
-        });
+        db.ref('suggestions').push({ text: text, up: 0, down: 0, date: new Date().toLocaleString() })
+        .then(() => { alert("تم الإرسال!"); document.getElementById('sugText').value = ""; showSection('view'); });
     }
 
     function loadSuggestions() {
         db.ref('suggestions').on('value', (snap) => {
             const list = document.getElementById('suggestionsList');
             list.innerHTML = "";
-            if(!snap.exists()) { list.innerHTML = "لا توجد اقتراحات حالياً."; return; }
+            if(!snap.exists()) { list.innerHTML = "لا توجد اقتراحات."; return; }
+
+            const myVotes = JSON.parse(localStorage.getItem('arx_votes') || '{}');
 
             snap.forEach((child) => {
                 const data = child.val();
                 const key = child.key;
+                const votedType = myVotes[key]; // هل صوتت ✅ أم ❌؟
+
                 list.innerHTML += `
                     <div class="suggestion-card">
                         <p>${data.text}</p>
                         <div class="vote-area">
-                            <button class="vote-btn" onclick="vote('${key}', 'up')">✅ <span>${data.up}</span></button>
-                            <button class="vote-btn" onclick="vote('${key}', 'down')">❌ <span>${data.down}</span></button>
+                            <button class="vote-btn ${votedType === 'up' ? 'voted' : ''}" onclick="handleVote('${key}', 'up')">✅ <span>${data.up || 0}</span></button>
+                            <button class="vote-btn ${votedType === 'down' ? 'voted' : ''}" onclick="handleVote('${key}', 'down')">❌ <span>${data.down || 0}</span></button>
                             ${isAdmin ? `<button class="del-btn" onclick="deleteSug('${key}')">حذف 🗑️</button>` : ''}
                         </div>
                     </div>`;
@@ -134,9 +128,24 @@
         });
     }
 
-    function vote(key, type) {
-        const ref = db.ref('suggestions').child(key).child(type);
-        ref.transaction((current) => (current || 0) + 1);
+    function handleVote(key, type) {
+        let myVotes = JSON.parse(localStorage.getItem('arx_votes') || '{}');
+        const oldVote = myVotes[key];
+
+        if (oldVote === type) return; // منع تكرار نفس التصويت
+
+        const updates = {};
+        if (oldVote) {
+            // تقليل التصويت القديم
+            updates[`suggestions/${key}/${oldVote}`] = firebase.database.ServerValue.increment(-1);
+        }
+        // زيادة التصويت الجديد
+        updates[`suggestions/${key}/${type}`] = firebase.database.ServerValue.increment(1);
+
+        db.ref().update(updates).then(() => {
+            myVotes[key] = type;
+            localStorage.setItem('arx_votes', JSON.stringify(myVotes));
+        });
     }
 
     function adminLogin() {
@@ -145,16 +154,12 @@
             isAdmin = true;
             document.getElementById('adminLoginBtn').classList.add('hidden');
             document.getElementById('adminStatus').classList.remove('hidden');
-            loadSuggestions(); // تحديث القائمة لإظهار أزرار الحذف
-        } else {
-            alert("الرمز خاطئ!");
-        }
+            loadSuggestions();
+        } else { alert("خطأ!"); }
     }
 
     function deleteSug(key) {
-        if(confirm("حذف الاقتراح نهائياً؟")) {
-            db.ref('suggestions').child(key).remove();
-        }
+        if(confirm("حذف نهائي؟")) db.ref('suggestions').child(key).remove();
     }
 </script>
 </body>
